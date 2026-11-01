@@ -37,7 +37,7 @@ def load_tables(folder: Path, sales_path: Path) -> dict[str, pd.DataFrame]:
     }
 
 
-def run(folder: Path) -> dict:
+def run(folder: Path, save_modified: Path | None = None) -> dict:
     original_path = folder / 'sales.csv'
     original_hash_before = file_hash(original_path)
     original_tables = load_tables(folder, original_path)
@@ -51,7 +51,8 @@ def run(folder: Path) -> dict:
     modified_value = original_value + 1000.0
 
     with tempfile.TemporaryDirectory(prefix='epresso-1000-test-') as temp_folder:
-        modified_path = Path(temp_folder) / 'sales_modified_1000.csv'
+        modified_path = save_modified or Path(temp_folder) / 'sales_modified_1000.csv'
+        modified_path.parent.mkdir(parents=True, exist_ok=True)
         modified_sales = original_tables['Sales'].copy()
         modified_sales.loc[record_index, 'Revenue'] = modified_value
         modified_sales.to_csv(modified_path, index=False)
@@ -107,13 +108,14 @@ def run(folder: Path) -> dict:
             'monthly_chart_source_change': float(modified_month - original_month),
             'assistant_function': modified_answer['tool_log'][0]['tool'],
             'assistant_channel_change': float(assistant_change),
-            'temporary_modified_file_removed': True,
+            'modified_test_file': str(modified_path),
         }
 
     original_hash_after = file_hash(original_path)
     evidence['original_hash_before'] = original_hash_before
     evidence['original_hash_after'] = original_hash_after
     evidence['original_restored'] = original_hash_before == original_hash_after
+    evidence['temporary_modified_file_removed'] = save_modified is None
 
     assert evidence['actual_total_change'] == 1000.0
     assert all(change == 1000.0 for change in filter_changes.values())
@@ -126,8 +128,13 @@ def run(folder: Path) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--data-dir', type=Path, default=Path('data/processed'))
+    parser.add_argument(
+        '--save-modified',
+        type=Path,
+        help='Optional ignored CSV path to keep for a manual hosted-app upload test.',
+    )
     args = parser.parse_args()
-    print(json.dumps(run(args.data_dir), indent=2))
+    print(json.dumps(run(args.data_dir, args.save_modified), indent=2))
 
 
 if __name__ == '__main__':
