@@ -12,7 +12,11 @@ KPIs, interactive charts, and a controlled analytical assistant.
 
 ## Live app
 
-The Streamlit Community Cloud URL will be added after the Checkpoint 0 deployment.
+Open the [live E-Presso BI Analyst Streamlit app](https://epreapp-bi-app-luca.streamlit.app/).
+The hosted Checkpoint 0 application supports file upload, worksheet selection,
+data preview, and table profiling. It may take a moment to wake up after a period
+of inactivity.
+
 The completed prerequisite analysis is available in the
 [live Looker Studio report](https://datastudio.google.com/reporting/8d641dde-a08f-4db8-bf05-8e6a3a089f44).
 
