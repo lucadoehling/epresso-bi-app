@@ -4,3 +4,15 @@
 __pycache__/
 .pytest_cache/
 .venv/
+
+# Original course files and locally generated analytical outputs
+*.accdb
+*.mdb
+*.pbix
+*.xlsx
+*.xls
+~$*
+/data/raw/*
+/data/processed/*
+!/data/raw/README.md
+!/data/processed/README.md
