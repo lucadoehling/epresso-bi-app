@@ -295,6 +295,18 @@ with tab_assistant:
             st.warning('Question limit reached for this session. Reload the page to start over.')
         else:
             st.session_state['n_questions'] += 1
-            answer = agent.answer_question(question, assistant_df, mode='rules')
+            try:
+                answer = agent.answer_question(question, assistant_df, mode='rules')
+            except Exception as exc:
+                # A provider is not used in rules mode, but unexpected analytical
+                # failures still produce a readable response instead of crashing
+                # the hosted session.
+                answer = {
+                    'scope': 'current dashboard subset',
+                    'findings': f'The request could not be completed: {exc}',
+                    'interpretation': 'No result was estimated or invented.',
+                    'next_steps': 'Check the uploaded columns and try again.',
+                    'tool_log': [],
+                }
             st.session_state['history'].append({'question': question, 'answer': answer})
             st.rerun()

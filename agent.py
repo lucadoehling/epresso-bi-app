@@ -29,6 +29,16 @@ TOOLS = {
         'params': set(),
         'description': 'Calculate revenue by product category.',
     },
+    'explain_limitation': {
+        'fn': analytics.explain_limitation,
+        'params': {'topic'},
+        'description': 'Check whether current data supports profitability or causal claims.',
+    },
+    'unsupported_request': {
+        'fn': analytics.unsupported_request,
+        'params': set(),
+        'description': 'Log that a request did not match an approved calculation.',
+    },
     'get_total': {
         'fn': analytics.get_total,
         'params': {'value_col', 'filters'},
@@ -79,6 +89,10 @@ def run_tool(name: str, args: dict, df, log: list) -> ToolResult:
 def rules_router(question: str, df):
     """Route supported question patterns to an allowlisted analytical tool."""
     q = question.lower()
+    if any(phrase in q for phrase in ('profit', 'margin', 'cost')):
+        return 'explain_limitation', {'topic': 'profitability'}
+    if any(phrase in q for phrase in ('cause', 'causal', 'causation')):
+        return 'explain_limitation', {'topic': 'causation'}
     if any(w in q for w in ('missing', 'duplicate', 'quality', 'blank')):
         return 'data_quality_report', {}
     if any(phrase in q for phrase in ('channel', 'store type', 'website', 'brick')):
@@ -108,8 +122,10 @@ def answer_question(question: str, df, mode: str = 'rules') -> dict:
     log: list = []
     routed = rules_router(question, df) if mode == 'rules' else llm_router(question, df)
     if routed is None:
+        result = run_tool('unsupported_request', {}, df, log)
         return {'scope': 'n/a', 'findings': UNSUPPORTED, 'interpretation': '',
-                'next_steps': '', 'tool_log': log}
+                'next_steps': 'Ask about one of the supported topics in the tool result.',
+                'tool_log': log}
     name, args = routed
     result = run_tool(name, args, df, log)
     return {

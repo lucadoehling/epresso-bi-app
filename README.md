@@ -90,8 +90,10 @@ calculate revenue by channel, annual revenue trends, monthly revenue share,
 category performance, and data-quality results from the current dashboard
 subset. It may call only approved, tested functions in `analytics.py`; it cannot
 execute generated code, arbitrary SQL, `eval`, or `exec`, and it cannot modify
-data. Unsupported requests are identified rather than answered with invented
-results.
+data. It also identifies missing profitability information, rejects causal
+claims, and logs unsupported requests rather than inventing results. Every
+answer exposes function, arguments, raw result, and scope. The rules-based mode
+uses no paid API and is limited to 15 questions per browser session.
 
 ## Validation
 
@@ -116,6 +118,7 @@ Detailed evidence:
 
 - [Data dictionary](docs/data_dictionary.md)
 - [Approved analytical functions, contracts, and test evidence](docs/analytical_functions.md)
+- [Assistant evaluation and exact $1,000 modified-data test](docs/assistant_validation.md)
 - [Dashboard validation, monthly comparisons, and independent check](docs/dashboard_validation.md)
 - [PBIX migration, command-line methods, and AI-use report](docs/pbix_migration_methods.md)
 
@@ -147,6 +150,7 @@ Streamlit analysis.
 | `agent.py` | Approved tool registry, dispatcher, and router |
 | `scripts/prepare_data.py` | Commented source preparation and validated joins |
 | `scripts/independent_check.py` | Standard-library revenue verification independent of the app |
+| `scripts/run_modified_data_test.py` | Temporary exact-$1,000 dashboard/filter/assistant validation |
 | `tests/` | Tests with hand-checkable answers |
 | `docs/` | Data model, migration method, and AI-use documentation |
 | `requirements.txt` | Packages required by the hosted app |

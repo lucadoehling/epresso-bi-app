@@ -472,6 +472,62 @@ def get_category_performance(df: pd.DataFrame) -> ToolResult:
     )
 
 
+def explain_limitation(df: pd.DataFrame, topic: str) -> ToolResult:
+    """Return a data-supported limitation for profitability or causation questions."""
+    name = 'explain_limitation'
+    if topic == 'profitability':
+        profit_fields = {'Cost', 'Costs', 'Profit', 'Margin'} & set(df.columns)
+        if profit_fields:
+            value = {'can_determine_profitability': True, 'available_fields': sorted(profit_fields)}
+            caveats = ['A profitability calculation still requires an approved metric definition.']
+        else:
+            value = {
+                'can_determine_profitability': False,
+                'missing_information': ['costs or cost of goods sold'],
+            }
+            caveats = ['Revenue alone cannot determine profit or margin.']
+    elif topic == 'causation':
+        value = {
+            'can_establish_causation': False,
+            'supported_conclusion': 'The data can describe association only.',
+        }
+        caveats = [
+            'Observational revenue and satisfaction data do not establish that one caused the other.'
+        ]
+    else:
+        return _error(name, f'Unsupported limitation topic: {topic}', {'topic': topic})
+    return ToolResult(
+        tool=name,
+        value=value,
+        definition=f'Data sufficiency check for {topic}',
+        scope=_epresso_scope(df),
+        rows_used=len(df),
+        caveats=caveats,
+    )
+
+
+def unsupported_request(df: pd.DataFrame) -> ToolResult:
+    """Return structured evidence when no approved calculation matches a request."""
+    return ToolResult(
+        tool='unsupported_request',
+        value={
+            'supported_topics': [
+                'revenue by channel',
+                'annual revenue trend',
+                'monthly revenue share',
+                'category performance',
+                'data quality',
+                'profitability data sufficiency',
+                'causation limitation',
+            ]
+        },
+        definition='Request did not match an approved analytical function',
+        scope=_epresso_scope(df),
+        rows_used=0,
+        caveats=['No calculation was run and no answer was estimated.'],
+    )
+
+
 # ------------------------------------------------------------ merge check
 def check_merge(left: pd.DataFrame, right: pd.DataFrame, on, value_col: str, how: str = 'left'):
     """Merge, and report whether the join changed the row count or the revenue sum.

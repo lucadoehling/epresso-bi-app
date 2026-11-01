@@ -64,6 +64,8 @@ def test_dispatcher_rejects_unknown_tool_and_arguments(df):
 def test_unsupported_question(df):
     out = agent.answer_question('What is the meaning of life?', df)
     assert 'cannot answer' in out['findings']
+    assert out['tool_log'][0]['tool'] == 'unsupported_request'
+    assert out['tool_log'][0]['arguments'] == {}
 
 
 @pytest.fixture
@@ -192,3 +194,35 @@ def test_rules_router_uses_approved_functions(epresso_tables, question, tool):
 def test_epresso_function_reports_insufficient_columns(df):
     result = analytics.get_revenue_by_channel(df)
     assert result.error and result.value is None
+
+
+def test_profitability_question_identifies_missing_information(epresso_tables):
+    model = analytics.build_epresso_model(epresso_tables)
+    answer = agent.answer_question('Which channel is most profitable?', model)
+    call = answer['tool_log'][0]
+    assert call['tool'] == 'explain_limitation'
+    assert call['arguments'] == {'topic': 'profitability'}
+    assert call['result']['value']['can_determine_profitability'] is False
+    assert 'Revenue alone' in answer['interpretation']
+
+
+def test_causation_question_states_association_only(epresso_tables):
+    model = analytics.build_epresso_model(epresso_tables)
+    answer = agent.answer_question('Does satisfaction cause higher revenue?', model)
+    call = answer['tool_log'][0]
+    assert call['tool'] == 'explain_limitation'
+    assert call['arguments'] == {'topic': 'causation'}
+    assert call['result']['value']['can_establish_causation'] is False
+
+
+def test_exact_1000_change_updates_assistant_result(epresso_tables):
+    original_model = analytics.build_epresso_model(epresso_tables)
+    original = agent.answer_question('Revenue by channel', original_model)
+    original_value = original['tool_log'][0]['result']['value']['Brick & Mortar']
+
+    epresso_tables['Sales'].loc[0, 'Revenue'] += 1000
+    modified_model = analytics.build_epresso_model(epresso_tables)
+    modified = agent.answer_question('Revenue by channel', modified_model)
+    modified_value = modified['tool_log'][0]['result']['value']['Brick & Mortar']
+
+    assert modified_value - original_value == 1000
