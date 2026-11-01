@@ -113,6 +113,7 @@ revenue. The Looker results use the same validated joins and reconcile to the
 Detailed evidence:
 
 - [Data dictionary](docs/data_dictionary.md)
+- [Dashboard validation, monthly comparisons, and independent check](docs/dashboard_validation.md)
 - [PBIX migration, command-line methods, and AI-use report](docs/pbix_migration_methods.md)
 
 ## Analytical methodology
@@ -142,6 +143,7 @@ Streamlit analysis.
 | `analytics.py` | Testable metrics and analytical functions |
 | `agent.py` | Approved tool registry, dispatcher, and router |
 | `scripts/prepare_data.py` | Commented source preparation and validated joins |
+| `scripts/independent_check.py` | Standard-library revenue verification independent of the app |
 | `tests/` | Tests with hand-checkable answers |
 | `docs/` | Data model, migration method, and AI-use documentation |
 | `requirements.txt` | Packages required by the hosted app |

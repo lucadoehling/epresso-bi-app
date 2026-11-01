@@ -146,3 +146,10 @@ def test_dashboard_model_refuses_failed_relationships(epresso_tables):
     epresso_tables['Stores'] = epresso_tables['Stores'].iloc[:1]
     with pytest.raises(ValueError, match='relationship checks'):
         analytics.build_epresso_model(epresso_tables)
+
+
+def test_updated_revenue_recalculates_without_code_change(epresso_tables):
+    original = analytics.dashboard_metrics(analytics.build_epresso_model(epresso_tables))
+    epresso_tables['Sales'].loc[0, 'Revenue'] += 100
+    updated = analytics.dashboard_metrics(analytics.build_epresso_model(epresso_tables))
+    assert updated['revenue'] == original['revenue'] + 100
