@@ -10,6 +10,45 @@ import pandas as pd
 EXCEL_EXT = ('.xlsx', '.xlsm', '.xls')
 TEXT_EXT = ('.csv', '.txt', '.tsv')
 
+# Checkpoint 1 metadata. These statements describe the source grain; they are
+# documentation, not calculated results. Table identity is verified from the
+# uploaded columns instead of trusting a filename.
+EPRESSO_TABLES = {
+    'Sales': {
+        'required': {'Sales ID', 'Date', 'Store ID', 'StoreYear', 'Category ID',
+                     'Product ID', 'Revenue'},
+        'grain': 'One monthly revenue record for one store and one product.',
+        'key': 'Sales ID',
+    },
+    'Categories': {
+        'required': {'Category ID', 'Category'},
+        'grain': 'One product category per Category ID.',
+        'key': 'Category ID',
+    },
+    'Products': {
+        'required': {'Product ID', 'Product'},
+        'grain': 'One product per Product ID; product names are not necessarily unique.',
+        'key': 'Product ID',
+    },
+    'Stores': {
+        'required': {'ID', 'StoreType', 'Market'},
+        'grain': 'One physical store or website sales channel per store ID.',
+        'key': 'ID',
+    },
+    'Survey Results': {
+        'required': {'Survey ID', 'Store ID', 'Year', 'Satisfaction', 'Interest'},
+        'grain': 'One annual survey result per store or website.',
+        'key': 'Survey ID',
+    },
+}
+
+EPRESSO_RELATIONSHIPS = (
+    ('Category', 'Category ID', 'Categories', 'Category ID'),
+    ('Product', 'Product ID', 'Products', 'Product ID'),
+    ('Store', 'Store ID', 'Stores', 'ID'),
+    ('Survey', 'StoreYear', 'Survey Results', 'Survey ID'),
+)
+
 
 # ---------------------------------------------------------------- loading
 def excel_sheet_names(file_bytes: bytes) -> list[str]:
@@ -41,6 +80,103 @@ def profile_table(df: pd.DataFrame) -> dict:
         }),
         'dtypes': pd.DataFrame({'column': df.columns, 'dtype': df.dtypes.astype(str).values}),
     }
+
+
+def identify_epresso_table(df: pd.DataFrame) -> str | None:
+    """Identify an E-Presso table from its required columns.
+
+    Column evidence is safer than a filename: a renamed upload still works, and
+    a file with the wrong structure is not silently assigned the wrong grain.
+    """
+    columns = set(df.columns)
+    matches = [name for name, spec in EPRESSO_TABLES.items()
+               if spec['required'].issubset(columns)]
+    return matches[0] if len(matches) == 1 else None
+
+
+def key_profile(df: pd.DataFrame, key: str) -> dict:
+    """Describe whether a candidate one-side key is complete and unique."""
+    if key not in df.columns:
+        return {'key': key, 'dtype': 'missing', 'missing': None,
+                'duplicate_values': None, 'unique': False}
+    return {
+        'key': key,
+        'dtype': str(df[key].dtype),
+        'missing': int(df[key].isna().sum()),
+        'duplicate_values': int(df[key].duplicated().sum()),
+        'unique': bool(df[key].notna().all() and not df[key].duplicated().any()),
+    }
+
+
+def check_epresso_relationships(tables: dict[str, pd.DataFrame]) -> pd.DataFrame:
+    """Validate the four proposed joins against the uploaded tables.
+
+    Each relationship is tested as a many-to-one LEFT JOIN from Sales. The
+    revenue control is calculated from the upload before and after the join; no
+    source row count or revenue amount is hardcoded.
+    """
+    required_names = {'Sales', 'Categories', 'Products', 'Stores', 'Survey Results'}
+    if not required_names.issubset(tables):
+        return pd.DataFrame()
+
+    sales = tables['Sales']
+    if 'Revenue' not in sales.columns:
+        return pd.DataFrame()
+    revenue = pd.to_numeric(sales['Revenue'], errors='coerce')
+    before_total = float(revenue.sum())
+    rows = []
+
+    for label, left_key, table_name, right_key in EPRESSO_RELATIONSHIPS:
+        dimension = tables[table_name]
+        right = key_profile(dimension, right_key)
+        left_dtype = str(sales[left_key].dtype) if left_key in sales.columns else 'missing'
+        unmatched = None
+        rows_after = None
+        revenue_after = None
+        passed = False
+        issue = ''
+
+        if left_key not in sales.columns or right_key not in dimension.columns:
+            issue = 'Required relationship key is missing.'
+        elif not right['unique']:
+            issue = 'The lookup key is missing values or is not unique; join not attempted.'
+        else:
+            try:
+                # Only the lookup key is needed to test coverage and fan-out.
+                # validate='many_to_one' rejects duplicate keys on the right.
+                joined = sales.merge(
+                    dimension[[right_key]],
+                    how='left',
+                    left_on=left_key,
+                    right_on=right_key,
+                    validate='many_to_one',
+                    indicator=True,
+                )
+                unmatched = int((joined['_merge'] == 'left_only').sum())
+                rows_after = len(joined)
+                revenue_after = float(pd.to_numeric(joined['Revenue'], errors='coerce').sum())
+                passed = (unmatched == 0 and rows_after == len(sales)
+                          and abs(revenue_after - before_total) < 1e-9)
+                if not passed:
+                    issue = 'Join has unmatched keys or changed rows/revenue.'
+            except (KeyError, pd.errors.MergeError, ValueError) as exc:
+                issue = str(exc)
+
+        rows.append({
+            'relationship': f'Sales[{left_key}] → {table_name}[{right_key}]',
+            'cardinality': 'many-to-one',
+            'sales_key_type': left_dtype,
+            'lookup_key_type': right['dtype'],
+            'lookup_key_unique': right['unique'],
+            'unmatched_sales_rows': unmatched,
+            'sales_rows_before': len(sales),
+            'rows_after_join': rows_after,
+            'revenue_before': before_total,
+            'revenue_after_join': revenue_after,
+            'passed': passed,
+            'issue': issue,
+        })
+    return pd.DataFrame(rows)
 
 
 # ---------------------------------------------------------- tool contract

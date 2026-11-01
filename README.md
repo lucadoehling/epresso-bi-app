@@ -7,15 +7,17 @@ survey analysis, developed from the official course starter template.
 
 The application lets a manager upload a CSV, tab-delimited text file, or Excel
 workbook and immediately inspect its rows, columns, duplicate records, missing
-values, data types, and preview. Later checkpoints will add validated E-Presso
-KPIs, interactive charts, and a controlled analytical assistant.
+values, data types, and preview. When all five E-Presso exports are uploaded,
+the app also states each table's grain and validates the four relationship keys
+without changing Sales rows or the uploaded revenue total. Later checkpoints
+will add KPIs, interactive charts, and a controlled analytical assistant.
 
 ## Live app
 
 Open the [live E-Presso BI Analyst Streamlit app](https://epreapp-bi-app-luca.streamlit.app/).
-The hosted Checkpoint 0 application supports file upload, worksheet selection,
-data preview, and table profiling. It may take a moment to wake up after a period
-of inactivity.
+The hosted application supports multi-file upload, worksheet selection, per-table
+profiles, grain statements, key checks, and revenue-preserving relationship
+validation. It may take a moment to wake up after a period of inactivity.
 
 The completed prerequisite analysis is available in the
 [live Looker Studio report](https://datastudio.google.com/reporting/8d641dde-a08f-4db8-bf05-8e6a3a089f44).
@@ -23,9 +25,13 @@ The completed prerequisite analysis is available in the
 ## How to use it
 
 1. Open the hosted app or run it locally.
-2. Use the sidebar to upload a CSV, TXT, TSV, XLSX, or XLS file.
-3. For an Excel workbook, select the worksheet to inspect.
-4. Review the profile and first 50 rows on **Data and profile**.
+2. Use the sidebar to upload one or more CSV, TXT, TSV, XLSX, or XLS files.
+3. For the full Checkpoint 1 validation, upload `categories.csv`, `products.csv`,
+   `stores.csv`, `survey_results.csv`, and `sales.csv` together.
+4. For an Excel workbook, select the worksheet to inspect.
+5. Review each file under **Data profiles**.
+6. Open **Grain and relationships** to review the table grains, candidate keys,
+   unmatched rows, row-count controls, and revenue controls.
 
 The original E-Presso sources are an Access sales database, an Excel survey
 workbook, and a tab-delimited stores file. The local preparation script converts
@@ -64,8 +70,9 @@ survey values are excluded from averages rather than treated as zero.
 
 The current starter uses a rules-based dispatcher. It may call only approved,
 tested functions in `analytics.py`; it cannot execute generated code or modify
-data. At Checkpoint 0, its implemented route reports duplicate and missing-value
-counts. Later checkpoints will add E-Presso-specific analytical tools.
+data. Its current implemented route reports duplicate and missing-value counts
+for the selected uploaded table. Later checkpoints will add E-Presso-specific
+analytical tools.
 
 ## Validation
 
@@ -107,8 +114,8 @@ Streamlit analysis.
 - Revenue cannot answer profitability questions without cost data.
 - The website has no Satisfaction or Interest survey values.
 - Survey association does not establish causation.
-- The Checkpoint 0 app profiles one uploaded table; multi-table E-Presso analysis
-  is added in later checkpoints.
+- Checkpoint 1 validates table structure and relationships but does not yet
+  provide the functional KPI dashboard required by Checkpoint 2.
 
 ## Files
 

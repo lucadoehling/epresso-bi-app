@@ -64,3 +64,58 @@ def test_dispatcher_rejects_unknown_tool_and_arguments(df):
 def test_unsupported_question(df):
     out = agent.answer_question('What is the meaning of life?', df)
     assert 'cannot answer' in out['findings']
+
+
+@pytest.fixture
+def epresso_tables():
+    """Tiny five-table model with totals that can be checked by hand."""
+    return {
+        'Sales': pd.DataFrame({
+            'Sales ID': ['S1', 'S2'],
+            'Date': ['2025-01-31', '2025-01-31'],
+            'Store ID': ['SH01', 'SH02'],
+            'StoreYear': ['SH01_25', 'SH02_25'],
+            'Category ID': ['C1', 'C1'],
+            'Product ID': ['P1', 'P1'],
+            'Revenue': [100, 250],
+        }),
+        'Categories': pd.DataFrame({'Category ID': ['C1'], 'Category': ['Machines']}),
+        'Products': pd.DataFrame({'Product ID': ['P1'], 'Product': ['Model A']}),
+        'Stores': pd.DataFrame({
+            'ID': ['SH01', 'SH02'],
+            'StoreType': ['Brick & Mortar', 'Brick & Mortar'],
+            'Market': ['North', 'South'],
+        }),
+        'Survey Results': pd.DataFrame({
+            'Survey ID': ['SH01_25', 'SH02_25'],
+            'Store ID': ['SH01', 'SH02'],
+            'Year': [2025, 2025],
+            'Satisfaction': [4.0, 4.5],
+            'Interest': [80, 90],
+        }),
+    }
+
+
+def test_identify_epresso_tables(epresso_tables):
+    for expected, table in epresso_tables.items():
+        assert analytics.identify_epresso_table(table) == expected
+
+
+def test_relationship_checks_preserve_uploaded_revenue(epresso_tables):
+    checks = analytics.check_epresso_relationships(epresso_tables)
+    assert len(checks) == 4
+    assert checks['passed'].all()
+    assert (checks['sales_rows_before'] == 2).all()
+    assert (checks['rows_after_join'] == 2).all()
+    assert (checks['revenue_before'] == 350).all()
+    assert (checks['revenue_after_join'] == 350).all()
+
+
+def test_relationship_check_rejects_duplicate_lookup_key(epresso_tables):
+    epresso_tables['Products'] = pd.concat(
+        [epresso_tables['Products'], epresso_tables['Products']], ignore_index=True
+    )
+    checks = analytics.check_epresso_relationships(epresso_tables)
+    product_check = checks.loc[checks['relationship'].str.contains('Product ID')].iloc[0]
+    assert not product_check['passed']
+    assert not product_check['lookup_key_unique']
