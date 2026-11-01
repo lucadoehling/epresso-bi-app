@@ -360,6 +360,118 @@ def data_quality_report(df: pd.DataFrame) -> ToolResult:
                       scope={'filters': 'none (full table)'}, rows_used=len(df), caveats=caveats)
 
 
+# ------------------------------------------ E-Presso approved analytical tools
+def _epresso_scope(df: pd.DataFrame) -> dict:
+    """Describe the exact currently loaded/filtered rows used by a tool."""
+    scope = {'rows': int(len(df))}
+    if 'Date' in df.columns and len(df):
+        dates = pd.to_datetime(df['Date'], errors='coerce').dropna()
+        if not dates.empty:
+            scope['date_start'] = dates.min().date().isoformat()
+            scope['date_end'] = dates.max().date().isoformat()
+    for column in ('Category', 'StoreType', 'Year'):
+        if column in df.columns:
+            scope[column] = sorted(map(str, df[column].dropna().unique()))
+    return scope
+
+
+def get_revenue_by_channel(df: pd.DataFrame) -> ToolResult:
+    """Return revenue grouped by Website versus Brick & Mortar."""
+    name = 'get_revenue_by_channel'
+    required = {'Revenue', 'StoreType'}
+    if not required.issubset(df.columns):
+        return _error(name, f'Missing required columns: {sorted(required - set(df.columns))}')
+    work = df.assign(Revenue=pd.to_numeric(df['Revenue'], errors='coerce'))
+    grouped = work.dropna(subset=['Revenue', 'StoreType']).groupby('StoreType')['Revenue'].sum()
+    return ToolResult(
+        tool=name,
+        value={str(key): float(value) for key, value in grouped.items()},
+        definition='Sum of Revenue by sales channel/store type',
+        scope=_epresso_scope(df),
+        rows_used=int(work[['Revenue', 'StoreType']].notna().all(axis=1).sum()),
+        caveats=['Revenue is not profit.'],
+    )
+
+
+def get_annual_revenue_trend(df: pd.DataFrame) -> ToolResult:
+    """Return annual revenue for the current dashboard subset."""
+    name = 'get_annual_revenue_trend'
+    if 'Revenue' not in df.columns or ('Year' not in df.columns and 'Date' not in df.columns):
+        return _error(name, 'Revenue and Year or Date columns are required.')
+    work = df.copy()
+    work['Revenue'] = pd.to_numeric(work['Revenue'], errors='coerce')
+    if 'Year' not in work.columns:
+        work['Year'] = pd.to_datetime(work['Date'], errors='coerce').dt.year
+    grouped = work.dropna(subset=['Revenue', 'Year']).groupby('Year')['Revenue'].sum().sort_index()
+    return ToolResult(
+        tool=name,
+        value={str(int(key)): float(value) for key, value in grouped.items()},
+        definition='Sum of Revenue by calendar year',
+        scope=_epresso_scope(df),
+        rows_used=int(work[['Revenue', 'Year']].notna().all(axis=1).sum()),
+        caveats=['The trend is descriptive and does not forecast future revenue.'],
+    )
+
+
+def get_monthly_revenue_share(df: pd.DataFrame) -> ToolResult:
+    """Return monthly revenue and its share of current-scope revenue.
+
+    The denominator is the sum of Revenue across every row in the current
+    dashboard subset, after active filters have been applied.
+    """
+    name = 'get_monthly_revenue_share'
+    if 'Revenue' not in df.columns or ('Month Number' not in df.columns and 'Date' not in df.columns):
+        return _error(name, 'Revenue and Month Number or Date columns are required.')
+    work = df.copy()
+    work['Revenue'] = pd.to_numeric(work['Revenue'], errors='coerce')
+    if 'Month Number' not in work.columns:
+        work['Month Number'] = pd.to_datetime(work['Date'], errors='coerce').dt.month
+    valid = work.dropna(subset=['Revenue', 'Month Number'])
+    grouped = valid.groupby('Month Number')['Revenue'].sum().sort_index()
+    denominator = float(grouped.sum())
+    month_names = pd.Series(range(1, 13)).map(
+        {number: pd.Timestamp(2000, number, 1).strftime('%B') for number in range(1, 13)}
+    )
+    name_by_number = dict(zip(range(1, 13), month_names))
+    values = {
+        name_by_number[int(month)]: {
+            'revenue': float(revenue),
+            'share_pct': 0.0 if denominator == 0 else float(revenue / denominator * 100),
+        }
+        for month, revenue in grouped.items()
+    }
+    return ToolResult(
+        tool=name,
+        value=values,
+        definition='Monthly Revenue and percentage of total Revenue in the current scope',
+        scope={**_epresso_scope(df), 'share_denominator': denominator},
+        rows_used=len(valid),
+        caveats=['Each share uses current-scope total revenue as its denominator.'],
+    )
+
+
+def get_category_performance(df: pd.DataFrame) -> ToolResult:
+    """Return revenue by product category for the current dashboard subset."""
+    name = 'get_category_performance'
+    required = {'Revenue', 'Category'}
+    if not required.issubset(df.columns):
+        return _error(name, f'Missing required columns: {sorted(required - set(df.columns))}')
+    work = df.assign(Revenue=pd.to_numeric(df['Revenue'], errors='coerce'))
+    grouped = (
+        work.dropna(subset=['Revenue', 'Category'])
+        .groupby('Category')['Revenue'].sum()
+        .sort_values(ascending=False)
+    )
+    return ToolResult(
+        tool=name,
+        value={str(key): float(value) for key, value in grouped.items()},
+        definition='Sum of Revenue by product category',
+        scope=_epresso_scope(df),
+        rows_used=int(work[['Revenue', 'Category']].notna().all(axis=1).sum()),
+        caveats=['Revenue is not profit; category size and costs are not included.'],
+    )
+
+
 # ------------------------------------------------------------ merge check
 def check_merge(left: pd.DataFrame, right: pd.DataFrame, on, value_col: str, how: str = 'left'):
     """Merge, and report whether the join changed the row count or the revenue sum.

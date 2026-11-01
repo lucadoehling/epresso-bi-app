@@ -85,11 +85,13 @@ survey values are excluded from averages rather than treated as zero.
 
 ## Assistant
 
-The current starter uses a rules-based dispatcher. It may call only approved,
-tested functions in `analytics.py`; it cannot execute generated code or modify
-data. Its current implemented route reports duplicate and missing-value counts
-for the selected uploaded table. Later checkpoints will add E-Presso-specific
-analytical tools.
+The application uses a rules-based assistant and allowlisted dispatcher. It can
+calculate revenue by channel, annual revenue trends, monthly revenue share,
+category performance, and data-quality results from the current dashboard
+subset. It may call only approved, tested functions in `analytics.py`; it cannot
+execute generated code, arbitrary SQL, `eval`, or `exec`, and it cannot modify
+data. Unsupported requests are identified rather than answered with invented
+results.
 
 ## Validation
 
@@ -113,6 +115,7 @@ revenue. The Looker results use the same validated joins and reconcile to the
 Detailed evidence:
 
 - [Data dictionary](docs/data_dictionary.md)
+- [Approved analytical functions, contracts, and test evidence](docs/analytical_functions.md)
 - [Dashboard validation, monthly comparisons, and independent check](docs/dashboard_validation.md)
 - [PBIX migration, command-line methods, and AI-use report](docs/pbix_migration_methods.md)
 

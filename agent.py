@@ -6,8 +6,29 @@ from __future__ import annotations
 import analytics
 from analytics import ToolResult
 
-# The ONLY things the assistant may do. Add your own tools here.
+# The ONLY things the assistant may do. The E-Presso tools use the same metric
+# definitions as the validated dashboard and receive its current filtered rows.
 TOOLS = {
+    'get_revenue_by_channel': {
+        'fn': analytics.get_revenue_by_channel,
+        'params': set(),
+        'description': 'Calculate revenue by Website versus Brick & Mortar.',
+    },
+    'get_annual_revenue_trend': {
+        'fn': analytics.get_annual_revenue_trend,
+        'params': set(),
+        'description': 'Calculate revenue by calendar year.',
+    },
+    'get_monthly_revenue_share': {
+        'fn': analytics.get_monthly_revenue_share,
+        'params': set(),
+        'description': 'Calculate monthly revenue and share of current-scope revenue.',
+    },
+    'get_category_performance': {
+        'fn': analytics.get_category_performance,
+        'params': set(),
+        'description': 'Calculate revenue by product category.',
+    },
     'get_total': {
         'fn': analytics.get_total,
         'params': {'value_col', 'filters'},
@@ -56,11 +77,18 @@ def run_tool(name: str, args: dict, df, log: list) -> ToolResult:
 
 
 def rules_router(question: str, df):
-    """Option B router. TODO: add rules for the tools YOU build.
-    Returns (tool_name, arguments) or None if the question is unsupported."""
+    """Route supported question patterns to an allowlisted analytical tool."""
     q = question.lower()
     if any(w in q for w in ('missing', 'duplicate', 'quality', 'blank')):
         return 'data_quality_report', {}
+    if any(phrase in q for phrase in ('channel', 'store type', 'website', 'brick')):
+        return 'get_revenue_by_channel', {}
+    if any(phrase in q for phrase in ('annual', 'by year', 'yearly', 'trend')):
+        return 'get_annual_revenue_trend', {}
+    if any(phrase in q for phrase in ('month', 'monthly', 'season', 'share')):
+        return 'get_monthly_revenue_share', {}
+    if any(phrase in q for phrase in ('category', 'categories')):
+        return 'get_category_performance', {}
     return None
 
 

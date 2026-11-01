@@ -81,6 +81,7 @@ relationship_checks = analytics.check_epresso_relationships(epresso_tables)
 dashboard_model = None
 if not relationship_checks.empty and relationship_checks['passed'].all():
     dashboard_model = analytics.build_epresso_model(epresso_tables)
+assistant_model = None
 
 tab_profile, tab_relationships, tab_dash, tab_assistant = st.tabs(
     ['Data profiles', 'Grain and relationships', 'Dashboard', 'Assistant']
@@ -190,6 +191,7 @@ with tab_dash:
             store_types=store_types,
             years=years,
         )
+        assistant_model = filtered
         metrics = analytics.dashboard_metrics(filtered)
         k1, k2, k3, k4 = st.columns(4)
         k1.metric('Revenue', f"${metrics['revenue']:,.0f}")
@@ -256,9 +258,23 @@ with tab_dash:
         )
 
 with tab_assistant:
-    st.caption('Mode: rules-based starter. It answers only through approved analytical functions.')
-    assistant_file = st.selectbox('Assistant dataset', list(loaded_files), key='assistant-file')
-    assistant_df = loaded_files[assistant_file]
+    st.caption(
+        'Mode: rules-based analytical assistant. It can invoke only approved, '
+        'tested functions and cannot execute generated code.'
+    )
+    if assistant_model is None:
+        assistant_file = st.selectbox('Quality-report dataset', list(loaded_files), key='assistant-file')
+        assistant_df = loaded_files[assistant_file]
+        st.info(
+            'Upload all five valid E-Presso exports to enable channel, annual, monthly, '
+            'and category questions. Data-quality questions work on the selected file.'
+        )
+    else:
+        assistant_df = assistant_model
+        st.markdown(
+            '**Current scope:** the assistant uses the same Category, Store Type, and '
+            'Year filters selected on the Dashboard tab.'
+        )
     st.session_state.setdefault('n_questions', 0)
     st.session_state.setdefault('history', [])
     for item in st.session_state['history']:
@@ -271,7 +287,9 @@ with tab_assistant:
                 st.markdown(f"**Interpretation:** {item['answer']['interpretation']}")
             with st.expander('Tool-call log'):
                 st.json(item['answer']['tool_log'])
-    question = st.chat_input('Ask about missing values or duplicates in the selected dataset')
+    question = st.chat_input(
+        'Ask about revenue by channel, year, month, category, or data quality'
+    )
     if question:
         if st.session_state['n_questions'] >= MAX_QUESTIONS:
             st.warning('Question limit reached for this session. Reload the page to start over.')

@@ -153,3 +153,42 @@ def test_updated_revenue_recalculates_without_code_change(epresso_tables):
     epresso_tables['Sales'].loc[0, 'Revenue'] += 100
     updated = analytics.dashboard_metrics(analytics.build_epresso_model(epresso_tables))
     assert updated['revenue'] == original['revenue'] + 100
+
+
+def test_epresso_named_functions_have_hand_checkable_results(epresso_tables):
+    model = analytics.build_epresso_model(epresso_tables)
+
+    channel = analytics.get_revenue_by_channel(model)
+    assert channel.value == {'Brick & Mortar': 350.0}
+
+    annual = analytics.get_annual_revenue_trend(model)
+    assert annual.value == {'2025': 350.0}
+
+    monthly = analytics.get_monthly_revenue_share(model)
+    assert monthly.value == {'January': {'revenue': 350.0, 'share_pct': 100.0}}
+    assert monthly.scope['share_denominator'] == 350.0
+
+    category = analytics.get_category_performance(model)
+    assert category.value == {'Machines': 350.0}
+
+
+@pytest.mark.parametrize(
+    ('question', 'tool'),
+    [
+        ('How does revenue compare by channel?', 'get_revenue_by_channel'),
+        ('Show the annual revenue trend', 'get_annual_revenue_trend'),
+        ('What is the monthly revenue share?', 'get_monthly_revenue_share'),
+        ('Which category performs best?', 'get_category_performance'),
+        ('Are there missing or duplicate rows?', 'data_quality_report'),
+    ],
+)
+def test_rules_router_uses_approved_functions(epresso_tables, question, tool):
+    model = analytics.build_epresso_model(epresso_tables)
+    answer = agent.answer_question(question, model)
+    assert answer['tool_log'][0]['tool'] == tool
+    assert not answer['findings'].startswith('I can only answer')
+
+
+def test_epresso_function_reports_insufficient_columns(df):
+    result = analytics.get_revenue_by_channel(df)
+    assert result.error and result.value is None
