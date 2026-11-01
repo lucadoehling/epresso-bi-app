@@ -179,6 +179,92 @@ def check_epresso_relationships(tables: dict[str, pd.DataFrame]) -> pd.DataFrame
     return pd.DataFrame(rows)
 
 
+def build_epresso_model(tables: dict[str, pd.DataFrame]) -> pd.DataFrame:
+    """Create the dashboard table after every relationship check passes.
+
+    Sales stays on the left of four many-to-one joins, so the resulting table
+    retains one row per store, month, and product. This function deliberately
+    has no fallback relationship: invalid or incomplete uploads fail loudly.
+    """
+    checks = check_epresso_relationships(tables)
+    if checks.empty or not checks['passed'].all():
+        raise ValueError('All relationship checks must pass before building the dashboard model.')
+
+    sales = tables['Sales'].copy()
+    categories = tables['Categories'].copy()
+    products = tables['Products'].copy()
+    stores = tables['Stores'].copy()
+    survey = tables['Survey Results'].copy()
+
+    # The renamed right-side keys make each join visually explicit and avoid
+    # ambiguous _x/_y suffixes when source tables contain similar field names.
+    model = sales.merge(
+        categories.rename(columns={'Category ID': 'Category Key'}),
+        how='left', left_on='Category ID', right_on='Category Key',
+        validate='many_to_one',
+    ).drop(columns='Category Key')
+    model = model.merge(
+        products.rename(columns={'Product ID': 'Product Key'}),
+        how='left', left_on='Product ID', right_on='Product Key',
+        validate='many_to_one',
+    ).drop(columns='Product Key')
+    model = model.merge(
+        stores.rename(columns={'ID': 'Store Key'}),
+        how='left', left_on='Store ID', right_on='Store Key',
+        validate='many_to_one',
+    ).drop(columns='Store Key')
+    model = model.merge(
+        survey.rename(columns={
+            'Survey ID': 'Survey Key',
+            'Store ID': 'Survey Store ID',
+            'Year': 'Survey Year',
+        }),
+        how='left', left_on='StoreYear', right_on='Survey Key',
+        validate='many_to_one',
+    ).drop(columns='Survey Key')
+
+    model['Date'] = pd.to_datetime(model['Date'], errors='raise')
+    model['Revenue'] = pd.to_numeric(model['Revenue'], errors='raise')
+    model['Satisfaction'] = pd.to_numeric(model['Satisfaction'], errors='coerce')
+    model['Interest'] = pd.to_numeric(model['Interest'], errors='coerce')
+    model['Year'] = model['Date'].dt.year
+    model['Month Number'] = model['Date'].dt.month
+    model['Month'] = model['Date'].dt.month_name().str.slice(stop=3)
+    return model
+
+
+def filter_dashboard(
+    model: pd.DataFrame,
+    *,
+    categories: list | None = None,
+    store_types: list | None = None,
+    years: list | None = None,
+) -> pd.DataFrame:
+    """Apply the user-visible dashboard filters to the validated model."""
+    filtered = model
+    if categories:
+        filtered = filtered[filtered['Category'].isin(categories)]
+    if store_types:
+        filtered = filtered[filtered['StoreType'].isin(store_types)]
+    if years:
+        filtered = filtered[filtered['Year'].isin(years)]
+    return filtered.copy()
+
+
+def dashboard_metrics(model: pd.DataFrame) -> dict:
+    """Calculate upload-driven KPI values for the currently filtered rows."""
+    revenue = pd.to_numeric(model['Revenue'], errors='coerce')
+    satisfaction = pd.to_numeric(model['Satisfaction'], errors='coerce')
+    return {
+        'revenue': float(revenue.sum()),
+        'sales_rows': int(len(model)),
+        'stores': int(model['Store ID'].nunique()),
+        'average_satisfaction': (
+            None if satisfaction.notna().sum() == 0 else float(satisfaction.mean())
+        ),
+    }
+
+
 # ---------------------------------------------------------- tool contract
 @dataclass
 class ToolResult:

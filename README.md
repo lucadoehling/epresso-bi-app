@@ -8,9 +8,10 @@ survey analysis, developed from the official course starter template.
 The application lets a manager upload a CSV, tab-delimited text file, or Excel
 workbook and immediately inspect its rows, columns, duplicate records, missing
 values, data types, and preview. When all five E-Presso exports are uploaded,
-the app also states each table's grain and validates the four relationship keys
-without changing Sales rows or the uploaded revenue total. Later checkpoints
-will add KPIs, interactive charts, and a controlled analytical assistant.
+the app states each table's grain, validates the four relationship keys, and
+builds an interactive revenue dashboard without changing Sales rows or the
+uploaded revenue total. A later checkpoint will add the controlled analytical
+assistant.
 
 ## Live app
 
@@ -32,6 +33,8 @@ The completed prerequisite analysis is available in the
 5. Review each file under **Data profiles**.
 6. Open **Grain and relationships** to review the table grains, candidate keys,
    unmatched rows, row-count controls, and revenue controls.
+7. Open **Dashboard** to filter Category, Store Type, and Year and review the
+   recalculated KPIs and charts.
 
 The original E-Presso sources are an Access sales database, an Excel survey
 workbook, and a tab-delimited stores file. The local preparation script converts
@@ -54,6 +57,20 @@ product. The verified model uses four many-to-one left joins:
 produces no matches. Product joins use `Product ID` because product names are not
 unique. Each merge is validated as many-to-one and checked for unmatched keys,
 changed row counts, and changed revenue.
+
+## Dashboard
+
+The functional dashboard is created only after all relationship checks pass.
+It includes upload-driven KPIs for revenue, Sales rows, stores/channels, and
+average satisfaction, plus these visuals:
+
+- Revenue by store type
+- Annual revenue trend
+- Revenue by calendar month
+- Revenue versus customer satisfaction by store-year
+
+Category, Store Type, and Year filters recalculate every KPI and chart. No
+dashboard result is embedded in the application code.
 
 ## Metric definitions
 
@@ -114,8 +131,8 @@ Streamlit analysis.
 - Revenue cannot answer profitability questions without cost data.
 - The website has no Satisfaction or Interest survey values.
 - Survey association does not establish causation.
-- Checkpoint 1 validates table structure and relationships but does not yet
-  provide the functional KPI dashboard required by Checkpoint 2.
+- The dashboard reports historical revenue and survey association; it does not
+  forecast future performance or identify causal drivers.
 
 ## Files
 

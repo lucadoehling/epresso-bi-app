@@ -4,6 +4,7 @@ Checkpoint 1 loads multiple source exports, profiles every table, states its
 grain, and validates relationship keys before combined metrics are allowed.
 Business calculations stay in analytics.py; assistant routing stays in agent.py.
 """
+import plotly.express as px
 import streamlit as st
 
 import agent
@@ -73,6 +74,13 @@ for filename, frame in loaded_files.items():
         epresso_tables[table_name] = frame
     elif table_name:
         st.warning(f'{filename} also looks like {table_name}; only the first matching table is used for joins.')
+
+# Build shared validation/model state once per rerun. The dashboard is available
+# only after every uploaded relationship passes its row and revenue controls.
+relationship_checks = analytics.check_epresso_relationships(epresso_tables)
+dashboard_model = None
+if not relationship_checks.empty and relationship_checks['passed'].all():
+    dashboard_model = analytics.build_epresso_model(epresso_tables)
 
 tab_profile, tab_relationships, tab_dash, tab_assistant = st.tabs(
     ['Data profiles', 'Grain and relationships', 'Dashboard', 'Assistant']
@@ -147,25 +155,105 @@ with tab_relationships:
             f"Still needed: {', '.join(missing_tables)}."
         )
     else:
-        checks = analytics.check_epresso_relationships(epresso_tables)
-        if not checks.empty and checks['passed'].all():
+        if not relationship_checks.empty and relationship_checks['passed'].all():
             st.success(
                 'All four many-to-one joins matched every Sales row and preserved '
                 'both the Sales row count and the uploaded Revenue total.'
             )
         else:
             st.error('At least one proposed relationship failed. Do not calculate combined metrics yet.')
-        st.dataframe(checks, use_container_width=True, hide_index=True)
+        st.dataframe(relationship_checks, use_container_width=True, hide_index=True)
         st.caption(
             'Revenue before and after each join is calculated from the uploaded Sales table. '
             'The app does not hardcode a source total.'
         )
 
 with tab_dash:
-    st.info(
-        'Checkpoint 2 will add KPIs, filters, and charts here. Combined metrics remain '
-        'disabled until the Checkpoint 1 relationship checks pass.'
-    )
+    st.subheader('Functional revenue dashboard')
+    if dashboard_model is None:
+        st.info(
+            'Upload all five recognized exports and resolve every relationship error '
+            'before dashboard metrics are calculated.'
+        )
+    else:
+        f1, f2, f3 = st.columns(3)
+        category_options = sorted(dashboard_model['Category'].dropna().unique())
+        store_type_options = sorted(dashboard_model['StoreType'].dropna().unique())
+        year_options = sorted(dashboard_model['Year'].dropna().unique())
+        categories = f1.multiselect('Category', category_options)
+        store_types = f2.multiselect('Store type', store_type_options)
+        years = f3.multiselect('Year', year_options)
+
+        filtered = analytics.filter_dashboard(
+            dashboard_model,
+            categories=categories,
+            store_types=store_types,
+            years=years,
+        )
+        metrics = analytics.dashboard_metrics(filtered)
+        k1, k2, k3, k4 = st.columns(4)
+        k1.metric('Revenue', f"${metrics['revenue']:,.0f}")
+        k2.metric('Sales rows', f"{metrics['sales_rows']:,}")
+        k3.metric('Stores/channels', f"{metrics['stores']:,}")
+        satisfaction_text = (
+            'No data' if metrics['average_satisfaction'] is None
+            else f"{metrics['average_satisfaction']:.2f}"
+        )
+        k4.metric('Avg. satisfaction', satisfaction_text)
+
+        if filtered.empty:
+            st.warning('The selected filters return no rows.')
+        else:
+            channel = (
+                filtered.groupby('StoreType', as_index=False)['Revenue'].sum()
+                .sort_values('Revenue', ascending=False)
+            )
+            annual = filtered.groupby('Year', as_index=False)['Revenue'].sum()
+            monthly = (
+                filtered.groupby(['Month Number', 'Month'], as_index=False)['Revenue'].sum()
+                .sort_values('Month Number')
+            )
+
+            left, right = st.columns(2)
+            with left:
+                st.plotly_chart(
+                    px.bar(channel, x='StoreType', y='Revenue', title='Revenue by store type'),
+                    use_container_width=True,
+                )
+            with right:
+                st.plotly_chart(
+                    px.line(annual, x='Year', y='Revenue', markers=True,
+                            title='Annual revenue trend'),
+                    use_container_width=True,
+                )
+
+            st.plotly_chart(
+                px.bar(monthly, x='Month', y='Revenue', title='Revenue by calendar month',
+                       category_orders={'Month': monthly['Month'].tolist()}),
+                use_container_width=True,
+            )
+
+            survey_points = (
+                filtered.dropna(subset=['Satisfaction'])
+                .groupby(['Store ID', 'Year'], as_index=False)
+                .agg(Revenue=('Revenue', 'sum'), Satisfaction=('Satisfaction', 'mean'))
+            )
+            if not survey_points.empty:
+                st.plotly_chart(
+                    px.scatter(
+                        survey_points,
+                        x='Satisfaction',
+                        y='Revenue',
+                        hover_data=['Store ID', 'Year'],
+                        title='Revenue and customer satisfaction by store-year',
+                    ),
+                    use_container_width=True,
+                )
+
+        st.caption(
+            'All KPIs and charts recalculate from the uploaded files and active filters. '
+            'Revenue is not profit; the satisfaction chart shows association, not causation.'
+        )
 
 with tab_assistant:
     st.caption('Mode: rules-based starter. It answers only through approved analytical functions.')

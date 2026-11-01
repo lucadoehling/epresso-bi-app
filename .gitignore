@@ -4,6 +4,7 @@
 __pycache__/
 .pytest_cache/
 .venv/
+.DS_Store
 
 # Original course files and locally generated analytical outputs
 *.accdb

@@ -119,3 +119,30 @@ def test_relationship_check_rejects_duplicate_lookup_key(epresso_tables):
     product_check = checks.loc[checks['relationship'].str.contains('Product ID')].iloc[0]
     assert not product_check['passed']
     assert not product_check['lookup_key_unique']
+
+
+def test_dashboard_model_keeps_sales_grain_and_total(epresso_tables):
+    model = analytics.build_epresso_model(epresso_tables)
+    assert len(model) == 2
+    assert model['Revenue'].sum() == 350
+    assert set(model['Category']) == {'Machines'}
+    assert set(model['StoreType']) == {'Brick & Mortar'}
+    assert set(model['Survey Year']) == {2025}
+
+
+def test_dashboard_filters_and_metrics_are_data_driven(epresso_tables):
+    model = analytics.build_epresso_model(epresso_tables)
+    filtered = analytics.filter_dashboard(model, years=[2025], categories=['Machines'])
+    metrics = analytics.dashboard_metrics(filtered)
+    assert metrics == {
+        'revenue': 350.0,
+        'sales_rows': 2,
+        'stores': 2,
+        'average_satisfaction': 4.25,
+    }
+
+
+def test_dashboard_model_refuses_failed_relationships(epresso_tables):
+    epresso_tables['Stores'] = epresso_tables['Stores'].iloc[:1]
+    with pytest.raises(ValueError, match='relationship checks'):
+        analytics.build_epresso_model(epresso_tables)
