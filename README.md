@@ -72,6 +72,16 @@ five-year revenue control total of **$42,174,440**. The starter test suite also
 uses small, hand-checkable examples to verify totals, filters, grouping, merge
 fan-out detection, and assistant restrictions.
 
+### Power BI comparison
+
+The original Power BI prerequisite was independently reproduced in
+[the live E-Presso Looker Studio dashboard](https://datastudio.google.com/reporting/8d641dde-a08f-4db8-bf05-8e6a3a089f44).
+The comparison covers the five-year revenue total, Website versus Brick &
+Mortar revenue, annual and monthly revenue patterns, product-category filtering,
+store geography, and the relationship between customer satisfaction and
+revenue. The Looker results use the same validated joins and reconcile to the
+**$42,174,440** revenue control total used for the Power BI analysis.
+
 Detailed evidence:
 
 - [Data dictionary](docs/data_dictionary.md)
